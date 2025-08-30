@@ -4,7 +4,6 @@ import { useState, useEffect, useMemo } from "react"
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from "wagmi"
 import { motion } from "framer-motion"
 import { parseEther } from "viem"
-import { BackgroundAnimation } from "@/components/BackgroundAnimation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -228,7 +227,7 @@ export default function UploadPage() {
   if (isSuccess) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
-        <BackgroundAnimation />
+        {/* BackgroundAnimation removed */}
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -296,7 +295,7 @@ export default function UploadPage() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white py-12 pt-24 md:py-16 md:pt-28">
-      <BackgroundAnimation />
+      {/* BackgroundAnimation removed */}
       <motion.div className="max-w-4xl mx-auto px-4" initial="hidden" animate="visible" variants={itemVariants}>
         <div className="text-center mb-10">
           <h1 className="text-5xl font-bold mb-3 bg-gradient-to-r from-teal-400 to-cyan-500 bg-clip-text text-transparent">
@@ -447,7 +446,7 @@ export default function UploadPage() {
                       <span>Uploading to IPFS...</span>
                       <span>{Math.round(uploadProgress)}%</span>
                     </div>
-                    <Progress value={uploadProgress} className="w-full [&>div]:bg-teal-500" />
+                    <Progress value={uploadProgress} className="w-full" />
                   </div>
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

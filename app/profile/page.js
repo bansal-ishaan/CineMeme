@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi"
+import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt, useReadContracts } from "wagmi"
 import { motion } from "framer-motion"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -12,7 +12,6 @@ import { Badge } from "@/components/ui/badge"
 import { User, Film, Upload, Star, DollarSign, Wallet, Loader2, Play } from "lucide-react"
 import Link from "next/link"
 import { CONTRACT_ADDRESS, CONTRACT_ABI, handleContractError } from "@/lib/contract"
-import { BackgroundAnimation } from "@/components/BackgroundAnimation"
 import { useToast } from "@/hooks/use-toast"
 
 export default function ProfilePage() {
@@ -26,8 +25,8 @@ export default function ProfilePage() {
     address: CONTRACT_ADDRESS,
     abi: CONTRACT_ABI,
     functionName: "userProfiles",
-    args: [address],
-    enabled: !!address,
+    args: [address || "0x0000000000000000000000000000000000000000"],
+    query: { enabled: Boolean(address) },
   })
 
   const { data: pageData } = useReadContract({
@@ -35,7 +34,7 @@ export default function ProfilePage() {
     abi: CONTRACT_ABI,
     functionName: "getPaginatedMovies",
     args: [0n, 1000n],
-    enabled: !!address,
+    query: { enabled: true },
   })
 
   const userMovies = useMemo(() => {
@@ -45,6 +44,51 @@ export default function ProfilePage() {
 
   const { writeContract, data: hash, isPending } = useWriteContract()
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
+
+  const { data: rentals } = useReadContract({
+    address: CONTRACT_ADDRESS,
+    abi: CONTRACT_ABI,
+    functionName: "getUserRentals",
+    args: [address || "0x0000000000000000000000000000000000000000"],
+    query: { enabled: Boolean(address) },
+  })
+
+  // Build unique movieIds from rentals to fetch movie details
+  const rentalMovieIds = Array.isArray(rentals) ? [...new Set(rentals.map((r) => r.movieId))] : []
+  const movieCalls = rentalMovieIds.map((mid) => ({
+    address: CONTRACT_ADDRESS,
+    abi: CONTRACT_ABI,
+    functionName: "movies",
+    args: [mid],
+  }))
+  const { data: rentalMoviesData } = useReadContracts({
+    contracts: movieCalls,
+    query: { enabled: movieCalls.length > 0 },
+  })
+  const rentalMoviesMap = {}
+  if (Array.isArray(rentalMoviesData)) {
+    rentalMoviesData.forEach((res, idx) => {
+      const m = res?.result
+      if (m) rentalMoviesMap[Number(rentalMovieIds[idx])] = m
+    })
+  }
+
+  // My Memes (same logic as in /memes)
+  const { data: myMemeIds } = useReadContract({
+    address: CONTRACT_ADDRESS,
+    abi: CONTRACT_ABI,
+    functionName: "userMemeIds",
+    args: [address || "0x0000000000000000000000000000000000000000"],
+    query: { enabled: Boolean(address) },
+  })
+  const myMemeCalls = (Array.isArray(myMemeIds) ? myMemeIds : []).map((id) => ({
+    address: CONTRACT_ADDRESS,
+    abi: CONTRACT_ABI,
+    functionName: "memes",
+    args: [id],
+  }))
+  const { data: myMemesData } = useReadContracts({ contracts: myMemeCalls, query: { enabled: myMemeCalls.length > 0 } })
+  const myMemes = Array.isArray(myMemesData) ? myMemesData.map((r) => r?.result).filter(Boolean) : []
 
   useEffect(() => {
     setIsMounted(true)
@@ -77,12 +121,14 @@ export default function ProfilePage() {
     }
   }
 
-  const formatPrice = (wei) => (Number(wei) / 1e18).toFixed(4)
-  const totalRentals = userMovies.reduce((sum, movie) => sum + Number(movie.rentalCount), 0)
-  const totalEarnings = userMovies.reduce(
-    (sum, movie) => sum + Number(movie.rentalCount) * Number(movie.pricePerDay) * 2 * 0.9,
-    0,
-  ) // approx by 48h price = 2*perDay
+  const formatPrice = (wei) => (Number(wei || 0n) / 1e18).toFixed(4)
+  const totalRentals = userMovies.reduce((sum, m) => sum + Number(m.rentalCount || 0), 0)
+  const totalEarnings = userMovies.reduce((sum, m) => {
+    const perDay = m?.pricePerDay ?? 0n
+    // Approx earnings (48h price = 2 * perDay), platform fee 10%
+    const per48h = Number(perDay) * 2
+    return sum + per48h * Number(m.rentalCount || 0) * 0.9
+  }, 0)
 
   const itemVariants = { hidden: { y: 20, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { duration: 0.5 } } }
 
@@ -97,7 +143,6 @@ export default function ProfilePage() {
   if (!isConnected) {
     return (
       <div className="relative min-h-screen bg-gray-900 flex items-center justify-center p-4 overflow-hidden">
-        <BackgroundAnimation />
         <Card className="bg-gray-800 border-gray-700 max-w-md text-center z-10">
           <CardHeader>
             <Wallet className="h-16 w-16 text-cyan-400 mx-auto mb-4" />
@@ -115,7 +160,6 @@ export default function ProfilePage() {
 
   return (
     <div className="relative min-h-screen bg-gray-900 text-white py-12 pt-24 md:py-16 md:pt-28 overflow-hidden">
-      <BackgroundAnimation />
       <motion.div
         className="max-w-7xl mx-auto px-4 z-10 relative"
         initial="hidden"
@@ -207,7 +251,10 @@ export default function ProfilePage() {
             <Tabs defaultValue="movies" className="w-full">
               <TabsList className="bg-gray-800 border-gray-700">
                 <TabsTrigger value="movies">Your Uploads</TabsTrigger>
+                <TabsTrigger value="rentals">Your Rentals</TabsTrigger>
+                <TabsTrigger value="memes">Your Memes</TabsTrigger>
               </TabsList>
+
               <TabsContent value="movies" className="mt-6">
                 <Card className="bg-gray-800/50 border-gray-700">
                   <CardHeader className="flex-row items-center justify-between">
@@ -259,12 +306,12 @@ export default function ProfilePage() {
                                   </Badge>
                                   <div className="flex items-center gap-1.5 text-yellow-400">
                                     <Star className="h-4 w-4 fill-current" />
-                                    <span>{Number(movie.rentalCount)} rentals</span>
+                                    <span>{Number(movie.rentalCount || 0)} rentals</span>
                                   </div>
                                 </div>
                                 <div className="mt-auto flex justify-between items-center">
                                   <div className="font-semibold text-teal-400">
-                                    {formatPrice(BigInt(movie.pricePerDay) * 2n)} ETH
+                                    {formatPrice(movie.pricePerDay * 2)} ETH
                                   </div>
                                   <Link href={`/movie/${movie.id}`}>
                                     <Button size="sm" className="bg-teal-500 hover:bg-teal-600 font-bold">
@@ -275,6 +322,92 @@ export default function ProfilePage() {
                               </CardContent>
                             </Card>
                           </motion.div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="rentals" className="mt-6">
+                <Card className="bg-gray-800/50 border-gray-700">
+                  <CardHeader>
+                    <CardTitle>Your Rentals</CardTitle>
+                    <CardDescription>Movies you’ve rented and can watch while active.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {!Array.isArray(rentals) || rentals.length === 0 ? (
+                      <div className="text-center py-16 text-gray-400">No rentals yet.</div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {rentals.map((r) => {
+                          const m = rentalMoviesMap[Number(r.movieId)]
+                          if (!m) return null
+                          const active = Number(r.expiryTimestamp) * 1000 > Date.now()
+                          return (
+                            <Card key={Number(r.rentalId)} className="bg-gray-800 border-gray-700">
+                              <CardContent className="p-4 flex gap-4">
+                                <img
+                                  src={
+                                    m.thumbnailCID
+                                      ? `https://gateway.pinata.cloud/ipfs/${m.thumbnailCID}`
+                                      : `/placeholder.svg?height=120&width=200&query=${encodeURIComponent(m.title + " movie poster")}`
+                                  }
+                                  alt={m.title}
+                                  className="w-32 h-20 object-cover rounded"
+                                />
+                                <div className="flex-1">
+                                  <div className="font-semibold">{m.title}</div>
+                                  <div className="text-xs text-gray-400">Rental #{Number(r.rentalId)}</div>
+                                  <div className={`text-xs mt-1 ${active ? "text-teal-300" : "text-gray-400"}`}>
+                                    {active ? "Active" : "Expired"} • Expires:{" "}
+                                    {new Date(Number(r.expiryTimestamp) * 1000).toLocaleString()}
+                                  </div>
+                                  <Link href={`/movie/${Number(m.id)}`} className="inline-block mt-2">
+                                    <Button size="sm" className="bg-teal-500 hover:bg-teal-600 font-bold">
+                                      <Play className="mr-2 h-4 w-4" /> View
+                                    </Button>
+                                  </Link>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="memes" className="mt-6">
+                <Card className="bg-gray-800/50 border-gray-700">
+                  <CardHeader>
+                    <CardTitle>Your Memes</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {myMemes.length === 0 ? (
+                      <div className="text-center py-16 text-gray-400">
+                        You haven’t minted any memes yet. Go to the Memes page to mint your first one.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {myMemes.map((meme) => (
+                          <Card key={Number(meme.id)} className="bg-gray-800 border-gray-700">
+                            <CardContent className="p-4 flex gap-4">
+                              <img
+                                src={`https://gateway.pinata.cloud/ipfs/${meme.imageCID}`}
+                                alt={meme.title}
+                                className="w-32 h-20 object-cover rounded"
+                              />
+                              <div className="flex-1">
+                                <div className="font-semibold">{meme.title}</div>
+                                <div className="text-xs text-gray-400">#{Number(meme.id)}</div>
+                                {meme.isSpotlighted ? (
+                                  <div className="mt-1 text-xs text-yellow-300">Spotlight Winner</div>
+                                ) : null}
+                              </div>
+                            </CardContent>
+                          </Card>
                         ))}
                       </div>
                     )}

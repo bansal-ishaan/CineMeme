@@ -1,5 +1,6 @@
 "use client"
 
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { useState, useEffect } from "react"
 import { useReadContract } from "wagmi"
 import { motion } from "framer-motion"
@@ -7,8 +8,6 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { BackgroundAnimation } from "@/components/BackgroundAnimation"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Search, X, Play, Star, Film } from "lucide-react"
 import Link from "next/link"
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from "@/lib/contract"
@@ -87,7 +86,7 @@ export default function ExplorePage() {
     setFilteredMovies(filtered)
   }, [movies, searchTerm, selectedGenre, sortBy])
 
-  const formatEth = (wei) => (Number(wei) / 1e18).toFixed(4)
+  const formatEth = (wei) => (Number(wei || 0n) / 1e18).toFixed(4)
   const genres = [...new Set(movies.map((movie) => movie.genre).filter(Boolean))]
 
   const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.08 } } }
@@ -96,7 +95,6 @@ export default function ExplorePage() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center relative">
-        <BackgroundAnimation />
         <Loader />
       </div>
     )
@@ -104,8 +102,6 @@ export default function ExplorePage() {
 
   return (
     <div className="relative min-h-screen bg-gray-900 text-white py-12 pt-24 md:py-16 md:pt-28">
-      <BackgroundAnimation />
-
       <motion.div
         className="max-w-7xl mx-auto px-4 relative z-10"
         initial="hidden"
@@ -235,7 +231,7 @@ export default function ExplorePage() {
                         <span>{Number(movie.rentalCount)} rentals</span>
                       </div>
                       <div className="font-semibold text-teal-400">
-                        {formatEth((BigInt(movie.pricePerDay || 0) * 2n).toString())} ETH
+                        {formatEth((movie?.pricePerDay ?? 0n) * 2n)} ETH
                       </div>
                     </div>
                     <Link href={`/movie/${movie.id}`} className="mt-auto">

@@ -10,7 +10,7 @@ const ABI = contractModule?.abi || contractModule
 // Minimal ABIs to detect owner without changing your global ABI
 const OWNABLE_ABI = [
   { type: "function", name: "owner", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
-]
+] 
 const PLATFORM_OWNER_ABI = [
   { type: "function", name: "platformOwner", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
 ]
