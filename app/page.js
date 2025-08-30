@@ -1,7 +1,7 @@
 // app/page.jsx
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, use } from 'react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount, useContractRead, useWriteContract, useWaitForTransactionReceipt, useReadContracts, useBalance } from 'wagmi';
 import { parseEther, formatEther } from 'viem';
@@ -1024,52 +1024,6 @@ const pinataApiSecret = process.env.NEXT_PUBLIC_PINATA_API_SECRET;
 const pinataGateway = process.env.NEXT_PUBLIC_PINATA_GATEWAY;
 
 // =================================================================================================
-// REUSABLE SPOTLIGHT COMPONENT (NEW)
-// =================================================================================================
-function SpotlightBanner({ spotlightMeme, isLoading }) {
-  if (isLoading) {
-    return (
-      <div className="mb-10 p-8 bg-gray-700 rounded-lg text-center shadow-lg">
-        <h2 className="text-2xl font-bold text-gray-300">
-          Loading Spotlight Winner...
-        </h2>
-      </div>
-    );
-  }
-
-  if (Array.isArray(spotlightMeme) && Number(spotlightMeme[0]) !== 0) {
-    const [id, creator, title, imageCID] = spotlightMeme;
-    return (
-      <div className="mb-10 p-8 bg-gradient-to-r from-yellow-500 via-amber-400 to-yellow-600 rounded-lg text-center shadow-2xl">
-        <h2 className="text-4xl font-bold text-gray-900 mb-2">
-          🏆 DAILY SPOTLIGHT 🏆
-        </h2>
-        <img
-          src={`${pinataGateway}/ipfs/${imageCID}`}
-          alt={title}
-          className="max-w-lg w-full mx-auto rounded-lg my-4 border-4 border-white shadow-xl"
-        />
-        <h3 className="text-3xl font-semibold text-gray-800">{title}</h3>
-        <p className="text-sm text-gray-700 mt-2">Creator: {creator}</p>
-      </div>
-    );
-  }
-
-  // Render this only if there's no winner
-  return (
-    <div className="mb-10 p-8 bg-gray-800 border-2 border-dashed border-gray-600 rounded-lg text-center">
-      <h2 className="text-2xl font-bold text-gray-400">
-        No Spotlight Winner Selected Yet
-      </h2>
-      <p className="text-gray-500 mt-2">
-        The platform owner can select a winner in the Admin Panel.
-      </p>
-    </div>
-  );
-}
-
-
-// =================================================================================================
 // ROOT APPLICATION COMPONENT
 // =================================================================================================
 export default function CineVaultApp() {
@@ -1077,7 +1031,7 @@ export default function CineVaultApp() {
     const [activeTab, setActiveTab] = useState('home');
     const [userProfile, setUserProfile] = useState(null);
     const [isLoadingProfile, setIsLoadingProfile] = useState(true);
-    const [viewingMovie, setViewingMovie] = useState(null);
+    const [viewingMovie, setViewingMovie] = useState(null); // New state for detailed movie view
 
     // Read platform owner to conditionally show Admin tab
     const { data: platformOwner } = useContractRead({ address: contractAddress, abi: contractABI, functionName: 'platformOwner' });
@@ -1085,17 +1039,6 @@ export default function CineVaultApp() {
 
     // Fetch user profile data
     const { data: profileData, refetch: refetchUserProfile } = useContractRead({ address: contractAddress, abi: contractABI, functionName: 'userProfiles', args: [address], enabled: isConnected });
-    
-    // =============================================================
-    // FETCH SPOTLIGHT MEME DATA FOR THE HOME PAGE (NEW)
-    // =============================================================
-    const { data: spotlightMeme, isLoading: isLoadingSpotlight } = useContractRead({
-        address: contractAddress,
-        abi: contractABI,
-        functionName: "getSpotlightMeme",
-        watch: true,
-    });
-
 
     useEffect(() => {
         if (isConnected && profileData) {
@@ -1112,7 +1055,7 @@ export default function CineVaultApp() {
     
     // Reset view when changing tabs
     const handleTabClick = (tab) => {
-        setViewingMovie(null);
+        setViewingMovie(null); // Go back to list view when clicking any tab
         setActiveTab(tab);
     }
 
@@ -1137,16 +1080,7 @@ export default function CineVaultApp() {
                 ) : userProfile ? (
                     <>
                         <div className="text-right mb-4 text-indigo-300">Welcome back, <strong>{userProfile.username}</strong>!</div>
-                        
-                        {/* ============================================================= */}
-                        {/* CONDITIONAL RENDERING OF TABS AND SPOTLIGHT (UPDATED) */}
-                        {/* ============================================================= */}
-                        {activeTab === 'home' && (
-                            <>
-                                <SpotlightBanner spotlightMeme={spotlightMeme} isLoading={isLoadingSpotlight} />
-                                {viewingMovie ? <MovieDetailView movie={viewingMovie} onBack={() => setViewingMovie(null)} /> : <MovieList onMovieSelect={setViewingMovie} />}
-                            </>
-                        )}
+                        {activeTab === 'home' && (viewingMovie ? <MovieDetailView movie={viewingMovie} onBack={() => setViewingMovie(null)} /> : <MovieList onMovieSelect={setViewingMovie} />)}
                         {activeTab === 'memes' && <MemeGallery />}
                         {activeTab === 'upload' && <UploadContent />}
                         {activeTab === 'profile' && <MyProfile />}
@@ -1211,7 +1145,7 @@ function CreateProfile({ onSuccess }) {
 }
 
 // =================================================================================================
-// Movie Components (Unchanged)
+// Movie Components (UPDATED LOGIC)
 // =================================================================================================
 function MovieCard({ movie, onMovieSelect }) {
     const [isHovering, setIsHovering] = useState(false);
@@ -1277,7 +1211,7 @@ function MovieDetailView({ movie, onBack }) {
 }
 
 // =================================================================================================
-// RentMovieModal, Upload Components (Unchanged)
+// RentMovieModal, MemeGallery, and Upload Components (Mostly Unchanged)
 // =================================================================================================
 function RentMovieModal({ movie, onClose }) {
     const [numDays, setNumDays] = useState(1);
@@ -1294,13 +1228,11 @@ function RentMovieModal({ movie, onClose }) {
     return ( <div className="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center z-50"><div className="bg-gray-800 p-8 rounded-lg max-w-lg w-full"><h2 className="text-2xl font-bold mb-4">Rent "{movie.title}"</h2><div className="mb-4"><label>Number of Days</label><input type="number" min="1" value={numDays} onChange={(e) => setNumDays(Number(e.target.value) || 1)} className="w-full bg-gray-700 p-3 rounded-md"/></div><div className="text-lg mb-4">{hasDiscount && <p className="text-green-400 font-bold">20% Spotlight Discount Applied!</p>}<p className="font-bold mt-2">Total Cost: {formatEther(totalCost)} ETH</p></div><div className="flex justify-end space-x-4"><button onClick={onClose} className="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded-md">Cancel</button><button onClick={submit} disabled={isPending} className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-500 px-4 py-2 rounded-md">{isPending ? 'Confirming...' : 'Rent Now'}</button></div></div></div> );
 }
 
-function UploadContent() { return (<div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto"><UploadMovieForm /><MintMemeForm /></div>); }
-function UploadMovieForm() { const [form, setForm] = useState({ title: '', genre: '', description: '', pricePerDay: '' }); const [cids, setCids] = useState({ film: '', trailer: '', thumbnail: '' }); const { data: hash, isPending, writeContract } = useWriteContract(); const { data: uploadFee } = useContractRead({ address: contractAddress, abi: contractABI, functionName: 'uploadFee' }); const canSubmit = useMemo(() => form.title && form.pricePerDay && cids.film && cids.trailer && cids.thumbnail && uploadFee !== undefined, [form, cids, uploadFee]); function submit() { if (!canSubmit) return; writeContract({ address: contractAddress, abi: contractABI, functionName: 'uploadMovie', args: [form.title, form.genre, form.description, cids.film, cids.trailer, cids.thumbnail, parseEther(form.pricePerDay)], value: uploadFee, }); } const { status } = useWaitForTransactionReceipt({ hash }); return (<div className="bg-gray-800 p-6 rounded-lg"><h3 className="text-2xl font-bold mb-4">Upload a New Movie</h3><input type="text" placeholder="Movie Title" onChange={e => setForm({...form, title: e.target.value})} className="w-full bg-gray-700 p-2 rounded mb-2" /><input type="text" placeholder="Genre" onChange={e => setForm({...form, genre: e.target.value})} className="w-full bg-gray-700 p-2 rounded mb-2" /><textarea placeholder="Description" onChange={e => setForm({...form, description: e.target.value})} className="w-full bg-gray-700 p-2 rounded mb-2" /><input type="number" placeholder="Price per Day (ETH)" onChange={e => setForm({...form, pricePerDay: e.target.value})} className="w-full bg-gray-700 p-2 rounded mb-4" /><IpfsUploader label="1. Upload Thumbnail" onUploadSuccess={cid => setCids(prev => ({...prev, thumbnail: cid}))} fileType="image/*" /><IpfsUploader label="2. Upload Trailer" onUploadSuccess={cid => setCids(prev => ({...prev, trailer: cid}))} fileType="video/*" /><IpfsUploader label="3. Upload Full Movie" onUploadSuccess={cid => setCids(prev => ({...prev, film: cid}))} fileType="video/*" /><button onClick={submit} disabled={!canSubmit || isPending} className="w-full mt-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-500 p-3 rounded-md font-bold transition-colors">{isPending ? 'Uploading...' : `Upload Movie (Fee: ${uploadFee ? formatEther(uploadFee) : '...'} ETH)`}</button>{status === 'success' && <p className="text-green-400 mt-2">Movie uploaded successfully!</p>}</div>); }
-function MintMemeForm() { const [title, setTitle] = useState(''); const [imageCID, setImageCID] = useState(''); const { data: hash, isPending, writeContract } = useWriteContract(); const { data: memeFee } = useContractRead({ address: contractAddress, abi: contractABI, functionName: 'memeFee' }); const canSubmit = useMemo(() => title && imageCID && memeFee !== undefined, [title, imageCID, memeFee]); function submit() { if (!canSubmit) return; writeContract({ address: contractAddress, abi: contractABI, functionName: 'mintMeme', args: [title, imageCID], value: memeFee }); } const { status } = useWaitForTransactionReceipt({ hash }); return (<div className="bg-gray-800 p-6 rounded-lg"><h3 className="text-2xl font-bold mb-4">Mint a New Meme</h3><input type="text" placeholder="Meme Title" onChange={e => setTitle(e.target.value)} className="w-full bg-gray-700 p-2 rounded mb-4" /><IpfsUploader label="Upload Meme Image" onUploadSuccess={setImageCID} fileType="image/*" /><button onClick={submit} disabled={!canSubmit || isPending} className="w-full mt-4 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-500 p-3 rounded-md font-bold transition-colors">{isPending ? 'Minting...' : `Mint Meme (Fee: ${memeFee ? formatEther(memeFee) : '...'} ETH)`}</button>{status === 'success' && <p className="text-green-400 mt-2">Meme minted successfully!</p>}</div>); }
-
-
 // =================================================================================================
-// MemeGallery Component (UPDATED to use SpotlightBanner)
+// MemeGallery Component (REVISED FOR SPOTLIGHT DEBUGGING & UI)
+// =================================================================================================
+// =================================================================================================
+// MemeGallery Component (CORRECTED & FINAL)
 // =================================================================================================
 function MemeGallery() {
   const { data: memeCountData, isLoading: isLoadingMemeCount } = useContractRead({
@@ -1346,8 +1278,45 @@ function MemeGallery() {
 
   return (
     <div>
-      {/* Use the reusable SpotlightBanner component */}
-      <SpotlightBanner spotlightMeme={spotlightMeme} isLoading={isLoadingSpotlight} />
+      {/* Spotlight Section */}
+      {isLoadingSpotlight ? (
+        <div className="mb-10 p-8 bg-gray-700 rounded-lg text-center shadow-lg">
+          <h2 className="text-2xl font-bold text-gray-300">
+            Loading Spotlight Winner...
+          </h2>
+        </div>
+      ) : // =============================================================
+        // THE FIX IS HERE: Added Array.isArray(spotlightMeme) check
+        // This prevents the "not iterable" error.
+        // =============================================================
+      Array.isArray(spotlightMeme) && Number(spotlightMeme[0]) !== 0 ? (
+        (() => {
+          const [id, creator, title, imageCID] = spotlightMeme;
+          return (
+            <div className="mb-10 p-8 bg-gradient-to-r from-yellow-500 via-amber-400 to-yellow-600 rounded-lg text-center shadow-2xl">
+              <h2 className="text-4xl font-bold text-gray-900 mb-2">
+                🏆 DAILY SPOTLIGHT 🏆
+              </h2>
+              <img
+                src={`${pinataGateway}/ipfs/${imageCID}`}
+                alt={title}
+                className="max-w-lg w-full mx-auto rounded-lg my-4 border-4 border-white shadow-xl"
+              />
+              <h3 className="text-3xl font-semibold text-gray-800">{title}</h3>
+              <p className="text-sm text-gray-700 mt-2">Creator: {creator}</p>
+            </div>
+          );
+        })()
+      ) : (
+        <div className="mb-10 p-8 bg-gray-800 border-2 border-dashed border-gray-600 rounded-lg text-center">
+          <h2 className="text-2xl font-bold text-gray-400">
+            No Spotlight Winner Selected Yet
+          </h2>
+          <p className="text-gray-500 mt-2">
+            The platform owner can select a winner in the Admin Panel.
+          </p>
+        </div>
+      )}
 
       {/* Meme Gallery */}
       <h2 className="text-3xl font-bold mb-6">Meme Gallery</h2>
@@ -1387,9 +1356,12 @@ function MemeGallery() {
   );
 }
 
+function UploadContent() { return (<div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto"><UploadMovieForm /><MintMemeForm /></div>); }
+function UploadMovieForm() { const [form, setForm] = useState({ title: '', genre: '', description: '', pricePerDay: '' }); const [cids, setCids] = useState({ film: '', trailer: '', thumbnail: '' }); const { data: hash, isPending, writeContract } = useWriteContract(); const { data: uploadFee } = useContractRead({ address: contractAddress, abi: contractABI, functionName: 'uploadFee' }); const canSubmit = useMemo(() => form.title && form.pricePerDay && cids.film && cids.trailer && cids.thumbnail && uploadFee !== undefined, [form, cids, uploadFee]); function submit() { if (!canSubmit) return; writeContract({ address: contractAddress, abi: contractABI, functionName: 'uploadMovie', args: [form.title, form.genre, form.description, cids.film, cids.trailer, cids.thumbnail, parseEther(form.pricePerDay)], value: uploadFee, }); } const { status } = useWaitForTransactionReceipt({ hash }); return (<div className="bg-gray-800 p-6 rounded-lg"><h3 className="text-2xl font-bold mb-4">Upload a New Movie</h3><input type="text" placeholder="Movie Title" onChange={e => setForm({...form, title: e.target.value})} className="w-full bg-gray-700 p-2 rounded mb-2" /><input type="text" placeholder="Genre" onChange={e => setForm({...form, genre: e.target.value})} className="w-full bg-gray-700 p-2 rounded mb-2" /><textarea placeholder="Description" onChange={e => setForm({...form, description: e.target.value})} className="w-full bg-gray-700 p-2 rounded mb-2" /><input type="number" placeholder="Price per Day (ETH)" onChange={e => setForm({...form, pricePerDay: e.target.value})} className="w-full bg-gray-700 p-2 rounded mb-4" /><IpfsUploader label="1. Upload Thumbnail" onUploadSuccess={cid => setCids(prev => ({...prev, thumbnail: cid}))} fileType="image/*" /><IpfsUploader label="2. Upload Trailer" onUploadSuccess={cid => setCids(prev => ({...prev, trailer: cid}))} fileType="video/*" /><IpfsUploader label="3. Upload Full Movie" onUploadSuccess={cid => setCids(prev => ({...prev, film: cid}))} fileType="video/*" /><button onClick={submit} disabled={!canSubmit || isPending} className="w-full mt-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-500 p-3 rounded-md font-bold transition-colors">{isPending ? 'Uploading...' : `Upload Movie (Fee: ${uploadFee ? formatEther(uploadFee) : '...'} ETH)`}</button>{status === 'success' && <p className="text-green-400 mt-2">Movie uploaded successfully!</p>}</div>); }
+function MintMemeForm() { const [title, setTitle] = useState(''); const [imageCID, setImageCID] = useState(''); const { data: hash, isPending, writeContract } = useWriteContract(); const { data: memeFee } = useContractRead({ address: contractAddress, abi: contractABI, functionName: 'memeFee' }); const canSubmit = useMemo(() => title && imageCID && memeFee !== undefined, [title, imageCID, memeFee]); function submit() { if (!canSubmit) return; writeContract({ address: contractAddress, abi: contractABI, functionName: 'mintMeme', args: [title, imageCID], value: memeFee }); } const { status } = useWaitForTransactionReceipt({ hash }); return (<div className="bg-gray-800 p-6 rounded-lg"><h3 className="text-2xl font-bold mb-4">Mint a New Meme</h3><input type="text" placeholder="Meme Title" onChange={e => setTitle(e.target.value)} className="w-full bg-gray-700 p-2 rounded mb-4" /><IpfsUploader label="Upload Meme Image" onUploadSuccess={setImageCID} fileType="image/*" /><button onClick={submit} disabled={!canSubmit || isPending} className="w-full mt-4 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-500 p-3 rounded-md font-bold transition-colors">{isPending ? 'Minting...' : `Mint Meme (Fee: ${memeFee ? formatEther(memeFee) : '...'} ETH)`}</button>{status === 'success' && <p className="text-green-400 mt-2">Meme minted successfully!</p>}</div>); }
 
 // =================================================================================================
-// My Profile & Other Sections (Unchanged)
+// COMPONENT: My Profile (NEW AND EXPANDED)
 // =================================================================================================
 function MyProfile() {
     const [profileTab, setProfileTab] = useState('rentals');
@@ -1468,7 +1440,7 @@ function WatchMovieModal({ movie, onClose }) {
 }
 
 // =================================================================================================
-// COMPONENT: Admin Panel (Unchanged)
+// COMPONENT: Admin Panel (NEW)
 // =================================================================================================
 function AdminPanel() {
     const { data: currentUploadFee } = useContractRead({ address: contractAddress, abi: contractABI, functionName: 'uploadFee' });
@@ -1530,7 +1502,5 @@ function AdminPanel() {
                 </div>
             </div>
         </div>
- 
-
-   );
+    );
 }
