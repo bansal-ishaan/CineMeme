@@ -18,16 +18,26 @@ export default function ProfilePage() {
   const [isMounted, setIsMounted] = useState(false)
   const { address, isConnected } = useAccount()
   const { toast } = useToast()
-  const [isEditing, setIsEditing] = useState(false)
   const [username, setUsername] = useState("")
 
-  const { data: userProfile, refetch: refetchProfile } = useReadContract({
+  // New local state to manage UI updates
+  const [localProfile, setLocalProfile] = useState(null);
+
+  const { data: contractUserProfile, refetch: refetchProfile } = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: CONTRACT_ABI,
     functionName: "userProfiles",
     args: [address || "0x0000000000000000000000000000000000000000"],
     query: { enabled: Boolean(address) },
   })
+
+  // Keep local state in sync with the contract data
+  useEffect(() => {
+    if (contractUserProfile) {
+      setLocalProfile(contractUserProfile)
+      setUsername(contractUserProfile.username)
+    }
+  }, [contractUserProfile])
 
   const { data: pageData } = useReadContract({
     address: CONTRACT_ADDRESS,
@@ -73,7 +83,7 @@ export default function ProfilePage() {
     })
   }
 
-  // My Memes (same logic as in /memes)
+  // My Memes
   const { data: myMemeIds } = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: CONTRACT_ABI,
@@ -94,17 +104,15 @@ export default function ProfilePage() {
     setIsMounted(true)
   }, [])
 
+  // Update local state and refetch after a successful transaction
   useEffect(() => {
-    if (userProfile?.username) setUsername(userProfile.username)
-  }, [userProfile])
-
-  useEffect(() => {
-    if (isSuccess) {
+    if (isSuccess && username) {
       toast({ title: "Profile Created!", description: "Your profile has been successfully created." })
-      setIsEditing(false)
+      // Immediately update local state to show the new profile
+      setLocalProfile({ username, exists: true })
       refetchProfile()
     }
-  }, [isSuccess, toast, refetchProfile])
+  }, [isSuccess, toast, username, refetchProfile])
 
   const handleProfileSubmit = async (e) => {
     e.preventDefault()
@@ -125,12 +133,13 @@ export default function ProfilePage() {
   const totalRentals = userMovies.reduce((sum, m) => sum + Number(m.rentalCount || 0), 0)
   const totalEarnings = userMovies.reduce((sum, m) => {
     const perDay = m?.pricePerDay ?? 0n
-    // Approx earnings (48h price = 2 * perDay), platform fee 10%
     const per48h = Number(perDay) * 2
     return sum + per48h * Number(m.rentalCount || 0) * 0.9
   }, 0)
 
   const itemVariants = { hidden: { y: 20, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { duration: 0.5 } } }
+  
+  const hasProfile = localProfile?.exists
 
   if (!isMounted) {
     return (
@@ -156,8 +165,6 @@ export default function ProfilePage() {
     )
   }
 
-  const hasProfile = userProfile?.exists
-
   return (
     <div className="relative min-h-screen bg-gray-900 text-white py-12 pt-24 md:py-16 md:pt-28 overflow-hidden">
       <motion.div
@@ -176,7 +183,7 @@ export default function ProfilePage() {
                   </div>
                 </div>
                 <CardTitle className="text-2xl font-bold">
-                  {hasProfile ? userProfile.username || "User" : "No Profile Yet"}
+                  {hasProfile ? localProfile.username || "User" : "No Profile Yet"}
                 </CardTitle>
                 <CardDescription className="text-sm font-mono break-all mt-1">{address}</CardDescription>
               </CardHeader>

@@ -1,24 +1,18 @@
-import "./globals.css"
-import { Inter } from "next/font/google"
-import { Providers } from "./providers"
-import ClientLayout from "./clientLayout"
-
-const inter = Inter({ subsets: ["latin"] })
+// app/layout.jsx
+import './globals.css';
+import { Providers } from './providers';
 
 export const metadata = {
-  title: "CineVault - Decentralized Movie Platform",
-  description: "Upload, rent, and watch movies on a decentralized platform.",
-    generator: 'v0.app'
-}
+  title: 'CineVault',
+  description: 'Decentralized Movie Rental Platform',
+};
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className="dark">
-      <body className={`${inter.className} bg-gray-900`}>
-        <Providers>
-          <ClientLayout>{children}</ClientLayout>
-        </Providers>
+    <html lang="en">
+      <body>
+        <Providers>{children}</Providers>
       </body>
     </html>
-  )
+  );
 }
