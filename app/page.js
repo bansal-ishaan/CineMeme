@@ -1249,7 +1249,7 @@ function MemeGallery() {
     functionName: "getSpotlightMeme",
     watch: true,
   });
-
+ useEffect(() => { console.log("Spotlight Meme Data:", spotlightMeme); }, [spotlightMeme]);
   const memeContracts = useMemo(
     () =>
       Array.from({ length: memeCount }, (_, i) => ({
